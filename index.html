@@ -3,286 +3,248 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Personaje con hitbox visible corregido</title>
+<title>Dos personajes con controles distintos</title>
 <style>
   html,body { height:100%; margin:0; background:#7bf35d; overflow:hidden; }
-  #personaje {
+  #personaje1, #personaje2 {
     position: absolute;
-    left: 100px;
     bottom: 50px;
     width: 80px;
     height: auto;
     transform-origin: center bottom; 
     will-change: transform, left, bottom;
   }
-  #cesped{
-    height: 610px;
-    background-color: rgb(189, 253, 255);
-  }
-  #roca {
-    position: absolute;
-    bottom: 50px;
-    left: 350px;
-    width: 100px;
-    height: 40px;
-    background-color: rgba(255,0,0,0.7);
-    border: 2px solid red;
-    user-select: none;
-    pointer-events: none;
-    margin: 0%;
-  }
-  /* hitbox visible */
-  #hitbox {
+  #personaje1 { left: 100px; }
+  #personaje2 { left: 300px; }
+  #hitbox1, #hitbox2 {
     position: absolute;
     border: 2px solid blue;
-    background-color: rgba(0,0,255,0.15);
     pointer-events: none;
     z-index: 1000;
   }
 </style>
 </head>
 <body>
-<div id="cesped"></div>
-<div id="roca"></div>
 
-<img id="personaje" src="./personajes/estatico.png" alt="Personaje">
+<img id="personaje1" src="./personajes/estatico.png" alt="Personaje 1">
+<div id="hitbox1"></div>
 
-<!-- Div para mostrar hitbox -->
-<div id="hitbox"></div>
+<img id="personaje2" src="./personajes/estatico2.png" alt="Personaje 2">
+<div id="hitbox2"></div>
 
 <script>
-/* Rutas EXACTAS que pediste (no cambié nada) */
-const PATH = {
+// ===== RUTAS =====
+const PATH1 = {
   idle:  './personajes/estatico.png',
   run:   './personajes/correr2.gif',
   jump:  './personajes/saltar.png',
   crouch:'./personajes/agachar.png'
 };
-const sonidoSalto = new Audio('sonidos/salto.mp3');
-const sonidoCorrer = new Audio('sonidos/correr.mp3');
+const PATH2 = {
+  idle:  './personajes/estatico2.png',
+  run:   './personajes/correr3.gif',
+  jump:  './personajes/saltar2.png',
+  crouch:'./personajes/agachar2.png'
+};
 
-/* preload */
-Object.values(PATH).forEach(src => { const i = new Image(); i.src = src; });
+// ===== SONIDOS =====
+// Personaje 1
+const sonidoSalto1 = new Audio('sonidos/salto.mp3');
+const sonidoCorrer1 = new Audio('sonidos/correr.mp3');
+function playJumpSound1() {
+    sonidoSalto1.currentTime = 0;
+    sonidoSalto1.play();
+}
+function playRunSound1() {
+    sonidoCorrer1.currentTime = 0;
+    sonidoCorrer1.loop = true;
+    sonidoCorrer1.play();
+}
+function stopRunSound1() {
+    sonidoCorrer1.pause();
+    sonidoCorrer1.currentTime = 0;
+}
 
-const p = document.getElementById('personaje');
-const roca = document.getElementById('roca');
-const hitboxDiv = document.getElementById('hitbox');
+// Personaje 2
+const sonidoSalto2 = new Audio('sonidos/salto.mp3');
+const sonidoCorrer2 = new Audio('sonidos/correr.mp3');
+function playJumpSound2() {
+    sonidoSalto2.currentTime = 0;
+    sonidoSalto2.play();
+}
+function playRunSound2() {
+    sonidoCorrer2.currentTime = 0;
+    sonidoCorrer2.loop = true;
+    sonidoCorrer2.play();
+}
+function stopRunSound2() {
+    sonidoCorrer2.pause();
+    sonidoCorrer2.currentTime = 0;
+}
 
-// Ajusta estos valores para que la hitbox coincida con el sprite visible
-const hitboxWidth = 45;   // ancho "real" colisión personaje
-const hitboxHeight = 65;  // alto "real" colisión personaje
-const spriteWidth = 60;   // ancho total sprite en CSS
+// ===== VARIABLES =====
+const p1 = document.getElementById('personaje1');
+const p2 = document.getElementById('personaje2');
+const hb1 = document.getElementById('hitbox1');
+const hb2 = document.getElementById('hitbox2');
 
-// Posición y tamaño de la roca
-const rocaX = 350;
-const rocaWidth = 100;
-const rocaTop = 50 + 40; // 50 suelo + 40 alto roca div
+let posX1 = 100, posY1 = 50, vx1 = 0, vy1 = 0, jumping1 = false, crouching1 = false;
+let posX2 = 300, posY2 = 50, vx2 = 0, vy2 = 0, jumping2 = false, crouching2 = false;
 
-/* estado */
-let posX = 100;
-let posY = 50;     // bottom en px (suelo = 50)
-let vx = 0;
-let vy = 0;
-let jumping = false;
-let crouching = false;
+let currentAnim1 = 'idle';
+let currentAnim2 = 'idle';
+let facing1 = 1;
+let facing2 = 1;
+
 const WALK_SPEED = 2;
 const JUMP_SPEED = 12;
 const GRAVITY = 0.6;
+const hitboxWidth = 45;
+const hitboxHeight = 65;
+const spriteWidth = 60;
 
 let keys = {};
-let currentAnim = 'idle';
 
-function playJumpSound() {
-    sonidoSalto.currentTime = 0;
-    sonidoSalto.play();
+// ===== ANIMACIÓN =====
+function setAnim1(name) {
+  if (currentAnim1 !== name) {
+    currentAnim1 = name;
+    p1.src = PATH1[name];
+  }
 }
-function playRunSound() {
-    sonidoCorrer.currentTime = 0;
-    sonidoCorrer.play();
-}
-function playDownSound() {
-    sonidoSalto.currentTime = 0;
-    sonidoSalto.play();
-}
-function setAnim(name) {
-  if (currentAnim === name) return;
-  currentAnim = name;
-  p.src = PATH[name];
+function setAnim2(name) {
+  if (currentAnim2 !== name) {
+    currentAnim2 = name;
+    p2.src = PATH2[name];
+  }
 }
 
-/* listeners */
+// ===== TECLADO =====
 window.addEventListener('keydown', e => {
-  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
-
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','w','a','s','d'].includes(e.key)) e.preventDefault();
   if (!keys[e.key]) {
     keys[e.key] = true;
 
-    if (e.key === 'ArrowUp' && !jumping) {
-      sonidoCorrer.pause();
-      playJumpSound();
-      jumping = true;
-      vy = JUMP_SPEED;
-      setAnim('jump');
-      crouching = false;
-      p.style.height = '';
+    // Personaje 1
+    if (e.key === 'w' && !jumping1) {
+      stopRunSound1();
+      playJumpSound1();
+      jumping1 = true;
+      vy1 = JUMP_SPEED;
+      setAnim1('jump');
+      crouching1 = false;
     }
+    if (e.key === 's' && !jumping1) {
+      crouching1 = true;
+      setAnim1('crouch');
+      stopRunSound1();
+    }
+    if (e.key === 'a') facing1 = -1;
+    if (e.key === 'd') facing1 = 1;
 
-    if (e.key === 'ArrowDown' && !jumping) {
-      crouching = true;
-      setAnim('crouch');
-      p.style.height = '80px';
-      sonidoCorrer.pause();
-      playDownSound();
+    // Personaje 2
+    if (e.key === 'ArrowUp' && !jumping2) {
+      stopRunSound2();
+      playJumpSound2();
+      jumping2 = true;
+      vy2 = JUMP_SPEED;
+      setAnim2('jump');
+      crouching2 = false;
     }
+    if (e.key === 'ArrowDown' && !jumping2) {
+      crouching2 = true;
+      setAnim2('crouch');
+      stopRunSound2();
+    }
+    if (e.key === 'ArrowLeft') facing2 = -1;
+    if (e.key === 'ArrowRight') facing2 = 1;
   }
 });
 
 window.addEventListener('keyup', e => {
   keys[e.key] = false;
-
-  if (e.key === 'ArrowDown' && crouching) {
-    crouching = false;
-    p.style.height = '';
-    if (!jumping && (keys['ArrowLeft'] || keys['ArrowRight'])) setAnim('run');
-    else if (!jumping) setAnim('idle');
-  }
+  if (e.key === 's') crouching1 = false;
+  if (e.key === 'ArrowDown') crouching2 = false;
 });
 
-/* loop principal */
+// ===== BUCLE =====
 function loop() {
-  if (crouching) vx = 0;
-  else if (keys['ArrowRight'] && !keys['ArrowLeft']) vx = WALK_SPEED;
-  else if (keys['ArrowLeft'] && !keys['ArrowRight']) vx = -WALK_SPEED;
-  else vx = 0;
+  // Personaje 1
+  if (crouching1) vx1 = 0;
+  else if (keys['d'] && !keys['a']) vx1 = WALK_SPEED;
+  else if (keys['a'] && !keys['d']) vx1 = -WALK_SPEED;
+  else vx1 = 0;
 
-  // animaciones y sonidos
-  if (jumping) {
-    if (!sonidoCorrer.paused) {
-      sonidoCorrer.pause();
-      sonidoCorrer.currentTime = 0;
+  if (jumping1) {
+    posY1 += vy1;
+    vy1 -= GRAVITY;
+    if (posY1 <= 50) {
+      posY1 = 50; vy1 = 0; jumping1 = false;
     }
-  } else if (!crouching) {
-    if (vx !== 0) {
-      setAnim('run');
-      if (sonidoCorrer.paused) {
-        sonidoCorrer.loop = true;
-        sonidoCorrer.play();
-      }
+  }
+  if (!jumping1 && !crouching1) {
+    if (vx1 !== 0) {
+      setAnim1('run');
+      if (sonidoCorrer1.paused) playRunSound1();
     } else {
-      setAnim('idle');
-      if (!sonidoCorrer.paused) {
-        sonidoCorrer.pause();
-        sonidoCorrer.currentTime = 0;
-      }
+      setAnim1('idle');
+      stopRunSound1();
+    }
+  } else if (jumping1) {
+    stopRunSound1();
+  }
+  posX1 += vx1;
+
+  // Personaje 2
+  if (crouching2) vx2 = 0;
+  else if (keys['ArrowRight'] && !keys['ArrowLeft']) vx2 = WALK_SPEED;
+  else if (keys['ArrowLeft'] && !keys['ArrowRight']) vx2 = -WALK_SPEED;
+  else vx2 = 0;
+
+  if (jumping2) {
+    posY2 += vy2;
+    vy2 -= GRAVITY;
+    if (posY2 <= 50) {
+      posY2 = 50; vy2 = 0; jumping2 = false;
     }
   }
-
-  // volteo sprite
-  if (vx > 0) p.style.transform = 'scaleX(1)';
-  else if (vx < 0) p.style.transform = 'scaleX(-1)';
-
-  posX += vx;
-
-  // límites ventana
-  const imgW = p.clientWidth || spriteWidth;
-  const minX = 0;
-  const maxX = Math.max(0, window.innerWidth - imgW - 10);
-  if (posX < minX) posX = minX;
-  if (posX > maxX) posX = maxX;
-
-  // Detectar si el sprite está volteado horizontalmente
-  const flipped = p.style.transform === 'scaleX(-1)';
-
-  // Calcular offset horizontal para centrar hitbox dentro del sprite
-  let offsetX = (spriteWidth - hitboxWidth) / 2;
-  if (flipped) {
-    // Si está volteado, invertimos el offset para que la hitbox no se desplace
-    offsetX = spriteWidth - hitboxWidth - offsetX;
-  }
-
-  // Offset vertical para subir la hitbox unos pixeles (para que no sobresalga abajo)
-  const offsetY = 5;
-
-  // Posición hitbox relativa al personaje
-  const personajeLeft = posX + offsetX;
-  const personajeBottom = posY + offsetY;
-  const personajeRight = personajeLeft + hitboxWidth;
-  const personajeTop = personajeBottom + hitboxHeight;
-
-  // Ajuste altura cuando no saltando
-  if (!jumping && !crouching) {
-    const sobreRocaHorizontal = (personajeRight > rocaX) && (personajeLeft < rocaX + rocaWidth);
-    if (sobreRocaHorizontal) {
-      posY = rocaTop; // parado sobre roca
+  if (!jumping2 && !crouching2) {
+    if (vx2 !== 0) {
+      setAnim2('run');
+      if (sonidoCorrer2.paused) playRunSound2();
     } else {
-      posY = 50;      // suelo normal
+      setAnim2('idle');
+      stopRunSound2();
     }
+  } else if (jumping2) {
+    stopRunSound2();
   }
+  posX2 += vx2;
 
-  // física salto y colisión con roca o suelo
-  if (jumping) {
-    posY += vy;
-    vy -= GRAVITY;
+  // Aplicar posiciones y giro
+  p1.style.left = posX1 + 'px';
+  p1.style.bottom = posY1 + 'px';
+  p1.style.transform = `scaleX(${facing1})`;
+  p2.style.left = posX2 + 'px';
+  p2.style.bottom = posY2 + 'px';
+  p2.style.transform = `scaleX(${facing2})`;
 
-    const sobreRocaHorizontal = (personajeRight > rocaX) && (personajeLeft < rocaX + rocaWidth);
-
-    if (sobreRocaHorizontal) {
-      if (vy < 0 && posY <= rocaTop && posY >= 50) {
-        posY = rocaTop;
-        vy = 0;
-        jumping = false;
-        if (keys['ArrowDown']) {
-          crouching = true;
-          setAnim('crouch');
-          p.style.height = '60px';
-        } else {
-          if (vx !== 0) setAnim('run');
-          else setAnim('idle');
-          p.style.height = '';
-        }
-      }
-    } else {
-      if (posY <= 50) {
-        posY = 50;
-        vy = 0;
-        jumping = false;
-        if (keys['ArrowDown']) {
-          crouching = true;
-          setAnim('crouch');
-          p.style.height = '60px';
-        } else {
-          if (vx !== 0) setAnim('run');
-          else setAnim('idle');
-          p.style.height = '';
-        }
-      }
-    }
-  }
-
-  // Actualizar posiciones DOM
-  p.style.left = posX + 'px';
-  p.style.bottom = posY + 'px';
-
-  // Actualizar visualización hitbox
-  hitboxDiv.style.left = personajeLeft + 'px';
-  hitboxDiv.style.bottom = personajeBottom + 'px';
-  hitboxDiv.style.width = hitboxWidth + 'px';
-  hitboxDiv.style.height = hitboxHeight + 'px';
+  // Hitboxes
+  hb1.style.left = (posX1 + (spriteWidth - hitboxWidth) / 2) + 'px';
+  hb1.style.bottom = (posY1 + 5) + 'px';
+  hb1.style.width = hitboxWidth + 'px';
+  hb1.style.height = hitboxHeight + 'px';
+  hb2.style.left = (posX2 + (spriteWidth - hitboxWidth) / 2) + 'px';
+  hb2.style.bottom = (posY2 + 5) + 'px';
+  hb2.style.width = hitboxWidth + 'px';
+  hb2.style.height = hitboxHeight + 'px';
 
   requestAnimationFrame(loop);
 }
 
-/* iniciar */
-setAnim('idle');
+setAnim1('idle');
+setAnim2('idle');
 loop();
-
-/* debug imagenes */
-Object.values(PATH).forEach(src => {
-  const img = new Image();
-  img.onerror = () => console.warn('No se pudo cargar:', src);
-  img.src = src;
-});
 </script>
-
 </body>
 </html>

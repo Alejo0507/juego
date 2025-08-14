@@ -7,7 +7,7 @@ canvas.height = 400; // altura fija
 
 // Mundo más grande que la pantalla
 const mundo = {
-    width: 3000, // largo del escenario
+    width: 30000, // largo del escenario
     height: canvas.height
 };
 
